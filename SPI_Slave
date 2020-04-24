@@ -1,0 +1,42 @@
+#include <avr/io.h>
+
+void SPI_SlaveInit(void)
+{
+	/* Set MISO output, all others input */
+	DDRB = (1<<DDB3);
+	/* Enable SPI */
+	SPCR = (1<<SPE);
+}
+
+void SPI_SlaveTransmit(uint8_t cData)
+{
+	/* Start transmission */
+	SPDR = cData;
+	/* Wait for transmission complete */
+	while(!(SPSR & (1<<SPIF)))
+	;
+}
+
+uint8_t SPI_SlaveReceive(void)
+{
+	/* Wait for reception complete */
+	while(!(SPSR & (1<<SPIF)))
+	;
+	/* Return data register */
+	return SPDR;
+}
+
+int main(void)
+{
+	uint8_t data;
+	
+   SPI_SlaveInit();
+  
+   data=SPI_SlaveReceive();
+   
+   SPI_SlaveTransmit(data);
+  
+    while (1) 
+    {
+    }
+}
