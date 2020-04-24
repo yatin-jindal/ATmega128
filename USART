@@ -1,0 +1,56 @@
+#include <avr/io.h>
+
+#define FOSC 8000000// Clock Speed
+#define BAUD 9600
+#define MYUBRR FOSC/16/BAUD-1
+
+void USART_Init( );
+void USART_Transmit( unsigned char data );
+unsigned char USART_Receive( void );
+
+int main( void )
+{
+	unsigned char str[18] = "\n\rTesting Uart";
+	unsigned char strLenght = 18;
+	unsigned char i = 0;
+	
+	USART_Init ( );
+	//USART_Transmit('S' );
+	while(1)
+	{
+		USART_Transmit( str[i++] );
+		if(i >= strLenght)
+		i = 0;
+		
+	}
+	return(0);
+}
+
+void USART_Init(void)
+{
+/*Setting baud rate*/
+	UBRR0H = 0x00;
+	UBRR0L = 0x33;
+	UCSR0C = 0x06;
+/*enabling receiver and transmitter*/
+	UCSR0B = 0x18;
+/*setting frame format*/	
+}
+
+void USART_Transmit( unsigned char data )
+{
+	/* Wait for empty transmit buffer */
+	while ( !( UCSR0A & (1<<UDRE)) )
+	;
+	/* Put data into buffer, sends the data */
+	UDR0 = data;
+}
+
+unsigned char USART_Receive( void )
+{
+	/* Wait for data to be received */
+	while ( !(UCSR0A & (1<<RXC)) )
+	;
+	/* Get and return received data from buffer */
+	return UDR0;
+}
