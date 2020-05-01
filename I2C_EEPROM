@@ -1,6 +1,6 @@
+#define F_CPU 8000000
 #include <avr/io.h>
-
-unsigned char recv_data;
+#include <util/delay.h>
 
 void USART_Init(void)
 {
@@ -19,11 +19,19 @@ void USART_Transmit( unsigned char data )
 	UDR0 = data;
 }
 
+unsigned char USART_Receive( void )
+{
+	/* Wait for data to be received */
+	while ( !(UCSR0A & (1<<RXC)) )
+	;
+	/* Get and return received data from buffer */
+	return UDR0;
+}
 
 void I2C_Init(void)
 {
-	TWBR=0b01100110;
-	TWSR=0b00000001;
+	TWBR=0x20;
+	TWSR=0x00;
 }
 
 void I2C_Start(void)
@@ -72,14 +80,10 @@ unsigned char EEPROM_Current_Read(void)
 	while( (TWSR & 0xF8) != 0x40);
 	
 	TWCR = (1<<TWINT)|(1<<TWEN);
-	recv_data=TWDR;
 	while (!(TWCR & (1<<TWINT)));
 	while(((TWSR & 0xF8)!=0x58));
-	TWCR=0b10110010;
-	while(!(TWCR & (1<<TWINT)));
-	while((TWSR & 0xF8)!= 0x10);
 	
-	return(recv_data);
+	return(TWDR);
 }
 
 unsigned char EEPROM_Random_Read(void)
@@ -94,39 +98,46 @@ unsigned char EEPROM_Random_Read(void)
 	while( (TWSR & 0xF8) != 0x40);
 	
 	TWCR = (1<<TWINT)|(1<<TWEN);
-	recv_data=TWDR;
 	while (!(TWCR & (1<<TWINT)));
 	while(((TWSR & 0xF8)!=0x58));
-	TWCR=0b10110010;
-	while(!(TWCR & (1<<TWINT)));
-	while((TWSR & 0xF8)!= 0x10);
 	
-	return(recv_data);
+	return(TWDR);
 }
 
 void I2C_Stop(void)
 {
 	TWCR=0b10010100;
-	//while(TWCR & (1<<TWSTO));
 }
 int main(void)
-{
-	
+{	
    I2C_Init();
+   USART_Init();
+   
    I2C_Start();
    EEPROM_WR();
-   Address(0b00000000);
-   Address(0b00000111);
-   EEPROM_Write(8);
+   Address(0x00);
+   Address(0x00);
+   int i=0;
+  while(i<5)
+  {
+	  EEPROM_Write(USART_Receive());
+	  i++;
+  } 
    I2C_Stop();
-   I2C_Start();
-   EEPROM_WR();
-   Address(0b00000000);
-   Address(0b00000111);
-   DDRF=0xff;
-   PORTF=EEPROM_Random_Read();
-    while (1) 
-    {
-    }
+     _delay_ms(100);
+ 
+   uint8_t add=0x00;
+   while(i>0)
+   {
+	   I2C_Start();
+	   EEPROM_WR();
+	   Address(0x00);
+	   Address(add);
+       USART_Transmit(EEPROM_Random_Read());
+	    I2C_Stop();
+		_delay_ms(100);
+	   i--;
+	   add+=0x01;
+   }
+   
 }
-
