@@ -1,0 +1,77 @@
+#include <avr/io.h>
+
+void I2C_init(void) 
+{
+	TWAR = 0x20;    
+	TWCR = (1<<TWEA)|(1<<TWEN)|(0<<TWSTA)|(0<<TWSTO);
+}
+
+void Address_match_w(void)
+{
+	while((TWSR & 0xF8)!= 0x60);
+	TWCR = (1<<TWEA)|(1<<TWEN)|(1<<TWINT);
+	while (!(TWCR & (1<<TWINT)));
+}
+
+void Address_match_r(void)
+{
+	while((TWSR & 0xF8)!= 0xA8);
+	TWCR = (1<<TWEA)|(1<<TWEN)|(1<<TWINT);
+	while (!(TWCR & (1<<TWINT)));
+}
+
+
+unsigned char I2C_Recieve(void)
+{
+	unsigned char recv_data;
+	//TWCR=(1<<TWINT)|(1<<TWEA)|(1<<TWEN);
+	while(!(TWCR &(1<<TWINT)));
+	recv_data=TWDR;
+	while((TWSR & 0xf8)!= 0x80);
+	return(recv_data);
+}
+
+void I2C_Transmit(unsigned char data)
+{
+	TWDR=data;
+	while(!(TWCR & (1<<TWINT)));
+	while((TWSR & 0xf8)!= 0xb8);
+}
+void USART_Init(void)
+{
+	UBRR0H = 0x00;
+	UBRR0L = 0x33;
+	UCSR0C = 0x06;
+	UCSR0B = 0x18;
+}
+
+void USART_Transmit( unsigned char data )
+{
+	/* Wait for empty transmit buffer */
+	while ( !( UCSR0A & (1<<UDRE)) )
+	;
+	/* Put data into buffer, sends the data */
+	UDR0 = data;
+	
+}
+
+unsigned char USART_Receive( void )
+{
+	/* Wait for data to be received */
+	while ( !(UCSR0A & (1<<RXC)) )
+	;
+	/* Get and return received data from buffer */
+	return UDR0;
+}
+
+int main(void)
+{
+    USART_Init();
+	I2C_init();
+
+    Address_match_r();
+	I2C_Transmit(32);
+    while (1) 
+    {
+    }
+}
