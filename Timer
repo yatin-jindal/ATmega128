@@ -1,0 +1,18 @@
+#define F_CPU 8000000
+#include <avr/io.h>
+#include <util/delay.h>
+
+int main()
+{
+	_delay_ms(1000);
+	DDRB=0xFF;         
+	TCNT0=0x00;
+  
+	/* setting the clock and OC0 on compare match*/
+  TCCR0 = (1<<CS02)|(1<<CS01)|(1<<CS00)|(1<<COM0)|(1<<COM1);
+	OCR0 = 0x64;
+	
+  /*waiting for match */
+	while ((TIFR & (1<<OCF0)) == 1);
+		
+	}
