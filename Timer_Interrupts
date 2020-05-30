@@ -1,0 +1,28 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+void Setup_Timer(void);
+
+int main()
+{
+	DDRB |= (1<<DDB5);
+	Setup_Timer();
+	sei();
+	while (1)
+	{
+		asm("nop");
+	}
+	
+}
+
+void Setup_Timer(void)
+{
+	TIMSK = (1<<OCIE0);
+	OCR0 = 0xF3;
+	TCCR0 = (1<<CS02)|(1<<CS01)|(1<<CS00)|(1<<WGM01);
+}
+
+ISR(TIMER0_COMP_vect)
+{
+	PORTB^=(1<<DDB5);
+}
