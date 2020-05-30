@@ -1,0 +1,35 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <avr/sleep.h>
+#define F_CPU 8000000
+
+void UART_init (void)
+{
+	UBRR0H=0x00;
+	UBRR0L=0x33;
+	UCSR0C=0x06;
+	UCSR0B=0x98;
+	
+	set_sleep_mode(SLEEP_MODE_IDLE);
+	sei();
+}
+
+ISR(USART0_RX_vect)
+{
+	//define temp value for storing received byte
+	uint8_t Temp;
+	//Store data to temp
+	Temp=UDR0;
+	Temp++;//increment
+	//send received data back
+	UDR0=Temp;
+}
+
+int main(void)
+{
+    UART_init();
+    while (1) 
+	sleep_mode();
+    
+	return 0;
+}
