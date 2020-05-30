@@ -1,0 +1,140 @@
+I2C master(Polling)
+
+#include <avr/io.h>
+
+void I2C_Init(void)
+{
+	TWBR=0x20;
+	TWSR=0x00;
+}
+
+void I2C_Start(void)
+{
+	TWCR=0b10100100;
+	while(!(TWCR & (1<<TWINT)));
+	while((TWSR & 0xF8)!= 0x08);
+}
+
+void Address_W(uint8_t SLA)
+{
+	TWDR=SLA;
+	TWCR=(1<<TWINT)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	while( (TWSR & 0xF8) != 0x18);
+}
+
+void I2C_Transmit(unsigned char data)
+{
+	TWDR=data;
+	TWCR=(1<<TWINT)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	while( (TWSR & 0xF8) != 0x28);
+}
+
+void I2C_Stop(void)
+{
+	TWCR=0b10010100;
+}
+
+void USART_Init(void)
+{
+	UBRR0H = 0x00;
+	UBRR0L = 0x33;
+	UCSR0C = 0x06;
+	UCSR0B = 0x18;
+}
+
+unsigned char USART_Receive( void )
+{
+	/* Wait for data to be received */
+	while ( !(UCSR0A & (1<<RXC)) )
+	;
+	/* Get and return received data from buffer */
+	return UDR0;
+}
+
+int main(void)
+{
+   USART_Init();
+   I2C_Init();
+   I2C_Start();
+   Address_W(0x20);
+   DDRF=0xFF;
+   
+   int num=0;
+   
+    while (num<5) 
+    {
+		PORTF^=0b10101010;
+		I2C_Transmit(USART_Receive());
+		num++;
+    }
+   I2C_Stop();
+}
+
+-----------------------------------------------------------
+
+I2C Slave(Interrupts)
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#include <avr/sleep.h>
+
+volatile uint8_t status;
+
+void I2C_init(void)
+{
+	TWAR = 0x20;
+	TWCR = (1<<TWEA)|(1<<TWEN)|(1<<TWIE);
+}
+
+void USART_Init(void)
+{
+	UBRR0H = 0x00;
+	UBRR0L = 0x33;
+	UCSR0C = 0x06;
+	UCSR0B = 0x18;
+}
+
+void USART_Transmit( unsigned char data )
+{
+	/* Wait for empty transmit buffer */
+	while ( !( UCSR0A & (1<<UDRE)) )
+	;
+	/* Put data into buffer, sends the data */
+	UDR0 = data;
+	
+}
+
+ISR(TWI_vect)
+{
+	status = TWSR & 0xF8;
+	switch(status){
+		case 0x60:
+		    TWCR |= (1<<TWINT)|(1<<TWEA);
+			PORTF=0xf0;
+			break;
+		case 0x80:
+		    USART_Transmit(TWDR);
+			TWCR |= (1<<TWINT)|(1<<TWEA);
+			PORTF=0x0f;
+			break;
+		case 0xA0:
+		    TWCR |= (1<<TWINT)|(1<<TWEA);
+			PORTF=0xff;
+			break;
+		case 0xA8:
+		    PORTF=0b10101010;
+	}
+}
+
+int main(void)
+{
+   USART_Init();
+   DDRF=0xff;
+   I2C_init();
+   sei();
+    while (1) 
+	sleep_mode();
+}
+
