@@ -1,0 +1,243 @@
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
+volatile uint8_t count;
+volatile uint8_t add;
+volatile uint8_t deployment_status;
+volatile uint8_t voltage_status;
+volatile uint8_t current_status;
+volatile uint8_t comm_data1,comm_data2;
+volatile uint8_t operational_mode;
+volatile uint8_t timestamp1,timestamp2,timestamp3,timestamp4;
+int times=0;
+int repeat=0;
+
+void setup_timer(void)
+{
+	TIMSK = (1<<OCIE1A);
+	OCR1A = 0x3D08;
+	TCCR1B = (1<<CS12)|(1<<CS10)|(1<<WGM12);
+	count=0;
+}
+
+void Init_interrupt(void)
+{
+	EICRA = (1<<ISC20)|(1<<ISC21)|(1<<ISC30)|(1<<ISC31);
+	EICRB = (1<<ISC40)|(1<<ISC50)|(1<<ISC60)|(1<<ISC70);
+    EIMSK = (1<<INT2)|(1<<INT3)|(1<<INT4)|(1<<INT5)|(1<<INT6)|(1<<INT7);
+}
+
+void ADC_Init(void)
+{
+	ADCSRA |= (1<<ADEN)|(1<<ADPS2);
+}
+
+void I2C_Init(void)
+{
+	TWBR=0x20;
+	TWSR=0x00;
+	add=0x00;
+}
+
+void I2C_Start(void)
+{
+	TWCR=0b10100100;
+	while(!(TWCR & (1<<TWINT)));
+	while((TWSR & 0xF8)!= 0x08);
+}
+
+void EEPROM_WR(void)
+{
+	TWDR=0b10100000;
+	TWCR=(1<<TWINT)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	while( (TWSR & 0xF8) != 0x18);
+}
+
+void Address(uint8_t addrs)
+{
+	TWDR=addrs;
+	TWCR=(1<<TWINT)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	while( (TWSR & 0xF8) != 0x28);
+}
+
+void EEPROM_Write(unsigned char data)
+{
+	TWDR=data;
+	TWCR=(1<<TWINT)|(1<<TWEN);
+	while (!(TWCR & (1<<TWINT)));
+	while( (TWSR & 0xF8) != 0x28);
+	add+=0x01;
+}
+
+void I2C_Stop(void)
+{
+	TWCR=0b10010100;
+}
+
+void UART_init (void)
+{
+	UBRR0H=0x00;
+	UBRR0L=0x33;
+	UCSR0C=0x06;
+	UCSR0B=0x98;
+}
+
+ISR(USART0_RX_vect)
+{
+	if (repeat==0)
+	{
+		comm_data1=UDR0;
+		repeat++;
+	} 
+	else
+	{
+		comm_data2=UDR0;
+		repeat=0;
+	}	
+}
+
+void SPI_init(void)
+{
+	DDRB=(1<<DDB3);
+	SPCR=(1<<SPIE)|(1<<SPE);
+}
+
+ISR(SPI_STC_vect)
+{
+	switch(times)
+	{
+	    case 0 :
+		     operational_mode=SPDR;
+             times++;
+			 PORTC|=0xC0;
+			 break;
+	    case 1 :
+		     timestamp1=SPDR;
+			 times++;
+			 PORTC|=0x30;
+			 break;
+		case 2 :
+		     timestamp2=SPDR;
+		     times++;
+			 PORTC|=0x0C;
+		     break;
+		case 3 :
+		     timestamp3=SPDR;
+		     times++;
+			 PORTC|=0x03;
+		     break;
+		case 4 :
+		     timestamp4=SPDR;
+		     times=0;
+			 PORTA|=0xF0;
+		     break;
+	}
+}
+
+ISR(TIMER1_COMPA_vect)
+{
+	count++;
+}
+
+ISR(INT2_vect)
+{
+	deployment_status |= 0x30;
+}
+
+ISR(INT3_vect)
+{
+	deployment_status |= 0x03;
+}
+
+ISR(INT4_vect)
+{
+	voltage_status |= 0x30;
+}
+
+ISR(INT5_vect)
+{
+	voltage_status |= 0x03;
+}
+
+ISR(INT6_vect)
+{
+	current_status |= 0x30;
+}
+
+ISR(INT7_vect)
+{
+	current_status |= 0x03;
+}
+
+int main(void)
+{
+	DDRA=0xFF;
+	DDRC=0xff;
+	deployment_status=0x00;
+	current_status=0x00;
+	voltage_status=0x00;
+    setup_timer();
+	ADC_Init();
+	UART_init();
+	SPI_init();
+	I2C_Init();
+	Init_interrupt();
+	sei();
+	
+    while (1) 
+    {
+		if (count==30)
+		{
+			count=0;
+			I2C_Start();
+			EEPROM_WR();
+			Address(0x00);
+			Address(add);
+			EEPROM_Write(timestamp1);
+			EEPROM_Write(timestamp2);
+			EEPROM_Write(timestamp3);
+			EEPROM_Write(timestamp4);
+			EEPROM_Write(operational_mode);
+			EEPROM_Write(deployment_status);
+			EEPROM_Write(voltage_status);
+			ADMUX = (1<<MUX2)|(1<<MUX1)|(1<<MUX0)|(1<<ADLAR);
+			ADCSRA |= (1<<ADSC);
+			while(!(ADCSRA & (1<<ADIF)));
+			EEPROM_Write(ADCH);
+			ADMUX = (1<<MUX2)|(1<<MUX1)|(1<<ADLAR);
+			ADCSRA |= (1<<ADSC);
+			while(!(ADCSRA & (1<<ADIF)));
+			EEPROM_Write(ADCH);
+			EEPROM_Write(current_status);
+			ADMUX = (1<<MUX2)|(1<<MUX0)|(1<<ADLAR);
+			ADCSRA |= (1<<ADSC);
+			while(!(ADCSRA & (1<<ADIF)));
+			EEPROM_Write(ADCH);
+			ADMUX = (1<<MUX2)|(1<<ADLAR);
+			ADCSRA |= (1<<ADSC);
+			while(!(ADCSRA & (1<<ADIF)));
+			EEPROM_Write(ADCH);
+			ADMUX = (1<<MUX1)|(1<<MUX0)|(1<<ADLAR);
+			ADCSRA |= (1<<ADSC);
+			while(!(ADCSRA & (1<<ADIF)));
+			EEPROM_Write(ADCH);
+			ADMUX = (1<<MUX1)|(1<<ADLAR);
+			ADCSRA |= (1<<ADSC);
+			while(!(ADCSRA & (1<<ADIF)));
+			EEPROM_Write(ADCH);
+			ADMUX = (1<<MUX0)|(1<<ADLAR);
+			ADCSRA |= (1<<ADSC);
+			while(!(ADCSRA & (1<<ADIF)));
+			EEPROM_Write(ADCH);
+			ADMUX = (1<<ADLAR);
+			ADCSRA |= (1<<ADSC);
+			while(!(ADCSRA & (1<<ADIF)));
+			EEPROM_Write(ADCH);
+			EEPROM_Write(comm_data1);
+			EEPROM_Write(comm_data2);
+			I2C_Stop();
+		}
+    }
+}
