@@ -137,9 +137,9 @@ void adcCheck(uint8_t mux, int i, uint8_t idealValue){
 	//wait for conversion to finish
 	while(!(ADCSRA & (1<<ADIF)));
 	
-  hmData[i]=ADCH;
+        hmData[i]=ADCH;
   
-  if(abs(ADCH-idealValue) > 0.5) opMode=Emergency;
+        if(abs(ADCH-idealValue) > 0.5) opMode=Emergency;
 }
 
 void uartInit (void){
@@ -170,7 +170,7 @@ uint8_t spiTrans(uint8_t data){
 }
 
 
-void HMDataCheck(freq){
+void HMDataCheck(int freq){
 	//setting the pin status variables to their starting value
 	hmData[5]=0x00;
 	hmData[9]=0x00;
@@ -202,17 +202,17 @@ void HMDataCheck(freq){
 			i2cStop();
 			}
       
-    else 
-    {
-    	adcCheck(0,7,42);
-      adcCheck(1,8,42);
-      adcCheck(2,10,42);
-      adcCheck(3,11,42);
-      adcCheck(4,12,42);
-      adcCheck(5,13,42);
-      adcCheck(6,14,42);
-      adcCheck(7,15,42);
-    }
+               else 
+              {
+                        adcCheck(0,7,42);
+                        adcCheck(1,8,42);
+                        adcCheck(2,10,42);
+                        adcCheck(3,11,42);
+                        adcCheck(4,12,42);
+                        adcCheck(5,13,42);
+                        adcCheck(6,14,42);
+                        adcCheck(7,15,42);
+             }
 		
 	}
 }
